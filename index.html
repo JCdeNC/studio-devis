@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Studio Devis</title>
+<link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Studio Devis">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#181C2A">
+<style>
+  html,body{margin:0;height:100%;background:#181C2A;font-family:Poppins,system-ui,-apple-system,sans-serif;color:#1F2330}
+  iframe{position:fixed;top:env(safe-area-inset-top);bottom:env(safe-area-inset-bottom);left:env(safe-area-inset-left);right:env(safe-area-inset-right);width:auto;height:auto;border:0;display:block}
+  @media(max-width:700px){#chg{display:none!important}}
+  .cache{display:none}
+  .reglage{max-width:560px;margin:10vh auto;background:#fff;border-radius:22px;padding:28px 30px;box-shadow:0 1px 2px rgba(31,35,48,.04),0 8px 24px rgba(31,35,48,.08)}
+  .reglage img{width:56px;height:56px}
+  .reglage h1{font-size:20px;margin:12px 0 6px}
+  .reglage p{font-size:13.5px;line-height:1.6;color:#6B7080;margin:0 0 14px}
+  .reglage label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
+  .reglage input{width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid #ECEAE6;border-radius:12px;font:13px system-ui,sans-serif;background:#FBFAF9}
+  .reglage input:focus{outline:0;border-color:#EE8938;box-shadow:0 0 0 3px rgba(238,137,56,.15)}
+  .reglage .bts{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+  .reglage button{border:0;border-radius:12px;padding:11px 18px;font:600 13.5px system-ui,sans-serif;cursor:pointer;background:#EE8938;color:#fff}
+  .reglage button.sec{background:#fff;color:#1F2330;border:1px solid #E2DED8}
+  .reglage .err{color:#B4481A;font-size:12.5px;margin-top:8px;min-height:1em}
+  #chg{position:fixed;right:10px;bottom:8px;font:11px system-ui,sans-serif;color:#9A9EAB;background:none;border:0;cursor:pointer;z-index:5;opacity:.6}
+  #chg:hover{opacity:1;color:#B45611}
+</style>
+</head>
+<body>
+<iframe id="app" class="cache" title="Studio Devis" allow="clipboard-read; clipboard-write"></iframe>
+<button id="chg" class="cache" title="Changer l’adresse de Studio Devis">⚙︎ adresse</button>
+<div class="reglage cache" id="reglage">
+  <img alt="Vidigal RIO Tour" id="logoR">
+  <h1>Studio Devis</h1>
+  <p>Collez ici l’adresse de votre application Studio Devis. Pour la trouver : ouvrez votre Google Sheet Studio Devis, menu <b>Studio Devis › Afficher l’adresse de l’app</b>, et copiez l’adresse complète (elle contient <b>/exec?key=</b>).<br>Elle est mémorisée sur cet ordinateur : ce réglage ne se fait qu’une fois.</p>
+  <label for="adr">Adresse de Studio Devis</label>
+  <input id="adr" placeholder="https://script.google.com/macros/s/…/exec?key=…">
+  <div class="err" id="err"></div>
+  <div class="bts"><button class="sec" id="ann">Annuler</button><button id="ok">Ouvrir Studio Devis</button></div>
+</div>
+<script>
+  var DEFAUT = '';  // adresse jamais publiée : elle est demandée une fois et gardée sur l'appareil
+  var CLE_MEMO = 'studioDevisAdresse';
+  function lire() {
+    var v = DEFAUT;
+    try { v = localStorage.getItem(CLE_MEMO) || DEFAUT; } catch (e) {}
+    return /\/dev\?/.test(v) ? '' : v;
+  }
+  function ecrire(v) { try { localStorage.setItem(CLE_MEMO, v); } catch (e) {} }
+  function ouvrir(adr) {
+    document.getElementById('reglage').classList.add('cache');
+    var f = document.getElementById('app');
+    f.src = adr; f.classList.remove('cache');
+    document.getElementById('chg').classList.remove('cache');
+  }
+  function reglage() {
+    document.getElementById('app').classList.add('cache');
+    document.getElementById('chg').classList.add('cache');
+    document.getElementById('reglage').classList.remove('cache');
+    document.getElementById('adr').value = lire();
+    document.getElementById('adr').focus();
+  }
+  document.getElementById('logoR').src = document.querySelector('link[rel=icon]').href;
+  document.getElementById('chg').onclick = reglage;
+  document.getElementById('ann').onclick = function () { if (lire()) ouvrir(lire()); };
+  document.getElementById('ok').onclick = function () {
+    var v = document.getElementById('adr').value.trim();
+    if (!/^https:\/\/script\.google\.com\/.+\/exec\?(.*&)?key=/.test(v)) {
+      document.getElementById('err').textContent = 'L’adresse doit commencer par https://script.google.com/ et contenir /exec?key=…';
+      return;
+    }
+    ecrire(v); ouvrir(v);
+  };
+  if (lire()) ouvrir(lire()); else reglage();
+</script>
+</body>
+</html>
