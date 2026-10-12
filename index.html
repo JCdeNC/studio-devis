@@ -32,21 +32,30 @@
   .reglage .err{color:#B4481A;font-size:12.5px;margin-top:8px;min-height:1em}
   #chg{position:fixed;right:10px;bottom:8px;font:11px system-ui,sans-serif;color:#9A9EAB;background:none;border:0;cursor:pointer;z-index:5;opacity:.6}
   #chg:hover{opacity:1;color:#B45611}
+  #attente{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#C9CCD6;font:14px system-ui,sans-serif}
+  #attente img{width:64px;height:64px;border-radius:16px}
 </style>
 </head>
 <body>
+<div id="attente" class="cache"><img alt="" id="logoA"><span id="attenteTxt">Ouverture de Studio Devis…</span></div>
 <iframe id="app" class="cache" title="Studio Devis" allow="clipboard-read; clipboard-write"></iframe>
 <button id="chg" class="cache" title="Changer l’adresse de Studio Devis">⚙︎ adresse</button>
 <div class="reglage cache" id="reglage">
   <img alt="Vidigal RIO Tour" id="logoR">
   <h1>Studio Devis</h1>
-  <p>Collez ici l’adresse de votre application Studio Devis. Pour la trouver : ouvrez votre Google Sheet Studio Devis, menu <b>Studio Devis › Afficher l’adresse de l’app</b>, et copiez l’adresse complète (elle contient <b>/exec?key=</b>).<br>Elle est mémorisée sur cet ordinateur : ce réglage ne se fait qu’une fois.</p>
+  <p>Collez ici l’adresse de votre application Studio Devis. Pour la trouver : ouvrez votre Google Sheet Studio Devis, menu <b>Studio Devis › Afficher l’adresse de l’app</b>, et copiez l’adresse complète (elle contient <b>/exec?key=</b>).<br>Elle est mémorisée sur cet appareil : ce réglage ne se fait qu’une fois.</p>
   <label for="adr">Adresse de Studio Devis</label>
   <input id="adr" placeholder="https://script.google.com/macros/s/…/exec?key=…">
   <div class="err" id="err"></div>
   <div class="bts"><button class="sec" id="ann">Annuler</button><button id="ok">Ouvrir Studio Devis</button></div>
 </div>
 <script>
+  /* Application installée de Studio Devis (iPhone et ordinateur), avec mode hors connexion.
+   * - la page Studio Devis est demandée à Apps Script (appStudio_, studio: 'page') et gardée sur l'appareil ;
+   * - hors-ligne.js remplace google.script.run : lectures gardées, frais / encaissements / agenda / To Do saisis hors connexion ;
+   * - sw.js garde les fichiers de cette page pour qu'elle s'ouvre sans réseau ;
+   * - si cette ouverture échoue avec internet, on revient à l'ancien affichage (cadre Google), sans hors connexion.
+   * Pour changer l'adresse : ajouter #reglage à la fin de l'adresse de cette page. */
   var DEFAUT = '';  // adresse jamais publiée : elle est demandée une fois et gardée sur l'appareil
   var CLE_MEMO = 'studioDevisAdresse';
   function lire() {
@@ -55,21 +64,97 @@
     return /\/dev\?/.test(v) ? '' : v;
   }
   function ecrire(v) { try { localStorage.setItem(CLE_MEMO, v); } catch (e) {} }
-  function ouvrir(adr) {
+
+  // petite mémoire de l'appareil (même base que hors-ligne.js)
+  function kv(mode, k, v) {
+    return new Promise(function (res) {
+      try {
+        var r = indexedDB.open('studioDevisHorsLigne', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+        r.onerror = function () { res(undefined); };
+        r.onsuccess = function () {
+          try {
+            var t = r.result.transaction('kv', mode === 'put' ? 'readwrite' : 'readonly'), s = t.objectStore('kv');
+            if (mode === 'put') { s.put(v, k); t.oncomplete = function () { res(true); }; t.onerror = function () { res(false); }; }
+            else { var q = s.get(k); q.onsuccess = function () { res(q.result); }; q.onerror = function () { res(undefined); }; }
+          } catch (e) { res(undefined); }
+        };
+      } catch (e) { res(undefined); }
+    });
+  }
+
+  function attente(txt) {
+    document.getElementById('reglage').classList.add('cache');
+    document.getElementById('attenteTxt').textContent = txt;
+    document.getElementById('attente').classList.remove('cache');
+  }
+  // ancien affichage : Studio Devis dans un cadre Google (sans hors connexion)
+  function cadre(adr) {
+    document.getElementById('attente').classList.add('cache');
     document.getElementById('reglage').classList.add('cache');
     var f = document.getElementById('app');
     f.src = adr; f.classList.remove('cache');
     document.getElementById('chg').classList.remove('cache');
   }
-  function reglage() {
+  function afficher(html, url, key) {
+    var tete = '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+      + '<title>Studio Devis</title><link rel="manifest" href="manifest.webmanifest">'
+      + '<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">'
+      + '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">'
+      + '<meta name="apple-mobile-web-app-title" content="Studio Devis"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">'
+      + '<meta name="theme-color" content="#181C2A">'
+      + '<script>window.__STUDIO_HL=' + JSON.stringify({ url: url, key: key }) + ';<\/script>'
+      + '<script src="hors-ligne.js"><\/script>';
+    var avant = html;
+    html = html.replace(/<head([^>]*)>/i, function (m) { return m + tete; });
+    if (html === avant) html = tete + html;
+    document.open(); document.write(html); document.close();
+  }
+  function demanderPage(url, key) {
+    var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var t = ctl ? setTimeout(function () { ctl.abort(); }, 25000) : null;
+    return fetch(url, { method: 'POST', redirect: 'follow', signal: ctl ? ctl.signal : undefined,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ key: key, studio: 'page' }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (t) clearTimeout(t); return j; }, function (e) { if (t) clearTimeout(t); throw e; });
+  }
+
+  function ouvrir(adr) {
+    var m = String(adr).match(/^(https:\/\/script\.google\.com\/[^?#]+\/exec)\?(?:.*&)?key=([^&#]+)/);
+    if (!m) return reglage('Adresse incomplète : elle doit contenir /exec?key=…');
+    var url = m[1], key = decodeURIComponent(m[2]);
+    attente(navigator.onLine ? 'Ouverture de Studio Devis…' : 'Hors connexion : ouverture de la copie gardée sur l’appareil…');
+    var copie = function () {
+      return kv('get', 'page').then(function (p) {
+        if (p && p.html && p.key === key) { afficher(p.html, url, key); return true; }
+        return false;
+      });
+    };
+    if (!navigator.onLine) {
+      return copie().then(function (ok) { if (!ok) attente('Hors connexion. Ouvrez Studio Devis une première fois avec internet sur cet appareil : il pourra ensuite s’ouvrir sans réseau.'); });
+    }
+    demanderPage(url, key).then(function (j) {
+      if (j && j.ok && j.html) {
+        return kv('put', 'page', { html: j.html, key: key, t: Date.now(), version: j.version || '' }).then(function () { afficher(j.html, url, key); });
+      }
+      if (j && /cl[ée] invalide/i.test(String(j.erreur || j.err || ''))) return reglage('Clé refusée par Studio Devis : recopiez l’adresse complète.');
+      throw new Error('réponse inattendue');
+    }).catch(function () {
+      // pas de réseau en réalité : la copie gardée ; sinon l'ancien affichage dans un cadre
+      copie().then(function (ok) { if (!ok) cadre(adr); });
+    });
+  }
+  function reglage(msg) {
+    document.getElementById('attente').classList.add('cache');
     document.getElementById('app').classList.add('cache');
     document.getElementById('chg').classList.add('cache');
     document.getElementById('reglage').classList.remove('cache');
+    document.getElementById('err').textContent = msg || '';
     document.getElementById('adr').value = lire();
     document.getElementById('adr').focus();
   }
-  document.getElementById('logoR').src = document.querySelector('link[rel=icon]').href;
-  document.getElementById('chg').onclick = reglage;
+  document.getElementById('logoR').src = document.getElementById('logoA').src = document.querySelector('link[rel=icon]').href;
+  document.getElementById('chg').onclick = function () { reglage(); };
   document.getElementById('ann').onclick = function () { if (lire()) ouvrir(lire()); };
   document.getElementById('ok').onclick = function () {
     var v = document.getElementById('adr').value.trim();
@@ -79,7 +164,8 @@
     }
     ecrire(v); ouvrir(v);
   };
-  if (lire()) ouvrir(lire()); else reglage();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+  if (location.hash === '#reglage' || !lire()) reglage(); else ouvrir(lire());
 </script>
 </body>
 </html>
