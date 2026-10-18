@@ -32,12 +32,56 @@
   .reglage .err{color:#B4481A;font-size:12.5px;margin-top:8px;min-height:1em}
   #chg{position:fixed;right:10px;bottom:8px;font:11px system-ui,sans-serif;color:#9A9EAB;background:none;border:0;cursor:pointer;z-index:5;opacity:.6}
   #chg:hover{opacity:1;color:#B45611}
-  #attente{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#C9CCD6;font:14px system-ui,sans-serif}
-  #attente img{width:64px;height:64px;border-radius:16px}
+  /* écran d'ouverture : le Kombi qui roule devant le soleil couchant et les Dois Irmãos (même dessin que le devis en ligne) */
+  #attente{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;color:#C9CCD6;font:14px Poppins,system-ui,sans-serif;
+    background:radial-gradient(120% 70% at 50% 40%,#232842 0%,#181C2A 70%)}
+  #attente .scene{position:relative;width:min(380px,86vw);aspect-ratio:640/465;margin-bottom:6px}
+  #attente .scene picture,#attente .scene img,#attente .scene svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #attente .scene svg.decor{z-index:0;inset:auto;left:-25%;top:-29%;width:150%;height:auto;overflow:visible;
+    -webkit-mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 62%,transparent 100%);mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 62%,transparent 100%)}
+  #attente .soleil{transform-origin:50% 50%;transform-box:fill-box;animation:soleil 4s ease-in-out infinite}
+  #attente .k{animation:cahot 1s ease-in-out infinite;transform-origin:50% 88%;z-index:2}
+  #attente .s{animation:vibre .24s steps(2) infinite;z-index:1;opacity:.55}
+  #attente .trait{position:absolute;left:-4%;height:4px;border-radius:4px;background:linear-gradient(90deg,rgba(238,137,56,0),#EE8938);opacity:0;z-index:1;animation:vitesse .9s linear infinite}
+  #attente .t1{top:38%;width:20%}#attente .t2{top:52%;width:26%;animation-delay:.3s}#attente .t3{top:66%;width:16%;animation-delay:.6s}
+  #attente .poussiere{position:absolute;left:9%;top:78%;width:7%;aspect-ratio:1;border-radius:50%;background:#4A4F66;opacity:0;z-index:1;animation:poussiere 1.1s ease-out infinite}
+  #attente .p2{left:52%;top:80%;animation-delay:.55s}
+  #attente .titre{margin:0;font-weight:600;font-size:19px;color:#F4EFE8;letter-spacing:.2px}
+  #attente .titre b{color:#EE8938;font-weight:600}
+  #attente .msg{margin:0;max-width:340px;min-height:2.6em;font-size:14px;line-height:1.55;color:#9A9EAB;transition:opacity .4s}
+  #attente .route{width:min(220px,60vw);height:4px;border-radius:4px;overflow:hidden;background:#2A2F45}
+  #attente .route i{display:block;height:100%;width:200%;background:repeating-linear-gradient(90deg,#EE8938 0 18px,transparent 18px 34px);animation:route .8s linear infinite}
+  #attente.horsligne .route{display:none}
+  @keyframes cahot{0%,100%{transform:translateY(0) rotate(0)}18%{transform:translateY(-3.2%) rotate(-1.4deg)}38%{transform:translateY(-.6%) rotate(.5deg)}58%{transform:translateY(-2.4%) rotate(-.9deg)}78%{transform:translateY(-.4%) rotate(.3deg)}}
+  @keyframes vibre{0%{transform:translateX(0)}100%{transform:translateX(-1.2%)}}
+  @keyframes vitesse{0%{transform:translateX(30%) scaleX(.3);opacity:0}25%{opacity:.8}100%{transform:translateX(-120%) scaleX(1);opacity:0}}
+  @keyframes poussiere{0%{transform:translate(0,0) scale(.3);opacity:.6}100%{transform:translate(-180%,-60%) scale(1.8);opacity:0}}
+  @keyframes soleil{0%,100%{transform:scale(1);opacity:.95}50%{transform:scale(1.04);opacity:1}}
+  @keyframes route{from{transform:translateX(0)}to{transform:translateX(-34px)}}
+  @media (prefers-reduced-motion: reduce){#attente .k,#attente .s,#attente .trait,#attente .poussiere,#attente .soleil,#attente .route i{animation:none}}
 </style>
 </head>
 <body>
-<div id="attente" class="cache"><img alt="" id="logoA"><span id="attenteTxt">Ouverture de Studio Devis…</span></div>
+<div id="attente" class="cache" role="status" aria-live="polite">
+  <div class="scene" aria-hidden="true">
+    <svg class="decor" viewBox="0 0 960 600" preserveAspectRatio="xMidYMid meet">
+      <defs><radialGradient id="gSoleil" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#F6B26B"/><stop offset=".6" stop-color="#EE8938"/><stop offset="1" stop-color="#C2571F"/></radialGradient></defs>
+      <g fill="#C9CCD6" opacity=".55"><circle cx="90" cy="70" r="2"/><circle cx="210" cy="30" r="1.5"/><circle cx="330" cy="88" r="1.6"/><circle cx="560" cy="40" r="1.4"/><circle cx="900" cy="60" r="1.8"/><circle cx="640" cy="18" r="1.2"/></g>
+      <circle class="soleil" cx="745" cy="150" r="78" fill="url(#gSoleil)"/>
+      <!-- Dois Irmãos (au-dessus de Vidigal) à droite, Pão de Açúcar à gauche -->
+      <path d="M560 470 L640 330 L690 210 Q708 180 728 214 L770 300 L805 262 L842 170 Q860 140 880 176 L960 330 L960 470 Z" fill="#2A3050"/>
+      <path d="M0 470 L0 350 L40 330 Q70 220 120 200 Q170 205 185 300 L215 330 L260 380 L300 470 Z" fill="#2A3050"/>
+      <path d="M0 455 Q240 430 480 445 T960 440 L960 600 L0 600 Z" fill="#20253A"/>
+    </svg>
+    <span class="trait t1"></span><span class="trait t2"></span><span class="trait t3"></span>
+    <span class="poussiere"></span><span class="poussiere p2"></span>
+    <picture class="s"><source srcset="https://sejour.vidigalriotour.com/kombi-attente-sol.webp" type="image/webp"><img src="https://sejour.vidigalriotour.com/kombi-attente-sol.png" alt=""></picture>
+    <picture class="k"><source srcset="https://sejour.vidigalriotour.com/kombi-attente.webp" type="image/webp"><img src="https://sejour.vidigalriotour.com/kombi-attente.png" alt=""></picture>
+  </div>
+  <p class="titre" id="attenteTitre">Studio Devis</p>
+  <p class="msg" id="attenteTxt">Ouverture de Studio Devis…</p>
+  <div class="route" aria-hidden="true"><i></i></div>
+</div>
 <iframe id="app" class="cache" title="Studio Devis" allow="clipboard-read; clipboard-write"></iframe>
 <button id="chg" class="cache" title="Changer l’adresse de Studio Devis">⚙︎ adresse</button>
 <div class="reglage cache" id="reglage">
@@ -83,13 +127,32 @@
     });
   }
 
-  function attente(txt) {
+  // écran d'ouverture : salut selon l'heure de Rio, messages qui changent si le chargement dure
+  var etapes = [];
+  function salut() {
+    var h = +new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hourCycle: 'h23' });
+    return (h >= 5 && h < 12 ? 'Bom dia' : h >= 12 && h < 18 ? 'Boa tarde' : 'Boa noite') + ', <b>JC</b> !';
+  }
+  function dire(txt) {
+    var m = document.getElementById('attenteTxt');
+    m.style.opacity = 0;
+    setTimeout(function () { m.textContent = txt; m.style.opacity = 1; }, 400);
+  }
+  function attente(txt, chargement) {
+    etapes.forEach(clearTimeout); etapes = [];
     document.getElementById('reglage').classList.add('cache');
+    document.getElementById('attenteTitre').innerHTML = salut();
     document.getElementById('attenteTxt').textContent = txt;
-    document.getElementById('attente').classList.remove('cache');
+    var a = document.getElementById('attente');
+    a.classList.toggle('horsligne', !chargement);
+    a.classList.remove('cache');
+    if (chargement) etapes = [[3500, 'Le Kombi chauffe le moteur…'], [8000, 'On charge les devis, l’agenda et les clients'],
+      [15000, 'Petite montée vers Vidigal, on y est presque !'], [25000, 'Le réseau est lent aujourd’hui… encore un instant']]
+      .map(function (e) { return setTimeout(function () { dire(e[1]); }, e[0]); });
   }
   // ancien affichage : Studio Devis dans un cadre Google (sans hors connexion)
   function cadre(adr) {
+    etapes.forEach(clearTimeout); etapes = [];
     document.getElementById('attente').classList.add('cache');
     document.getElementById('reglage').classList.add('cache');
     var f = document.getElementById('app');
@@ -123,7 +186,7 @@
     var m = String(adr).match(/^(https:\/\/script\.google\.com\/[^?#]+\/exec)\?(?:.*&)?key=([^&#]+)/);
     if (!m) return reglage('Adresse incomplète : elle doit contenir /exec?key=…');
     var url = m[1], key = decodeURIComponent(m[2]);
-    attente(navigator.onLine ? 'Ouverture de Studio Devis…' : 'Hors connexion : ouverture de la copie gardée sur l’appareil…');
+    attente(navigator.onLine ? 'Ouverture de Studio Devis…' : 'Hors connexion : ouverture de la copie gardée sur l’appareil…', navigator.onLine);
     var copie = function () {
       return kv('get', 'page').then(function (p) {
         if (p && p.html && p.key === key) { afficher(p.html, url, key); return true; }
@@ -153,7 +216,7 @@
     document.getElementById('adr').value = lire();
     document.getElementById('adr').focus();
   }
-  document.getElementById('logoR').src = document.getElementById('logoA').src = document.querySelector('link[rel=icon]').href;
+  document.getElementById('logoR').src = document.querySelector('link[rel=icon]').href;
   document.getElementById('chg').onclick = function () { reglage(); };
   document.getElementById('ann').onclick = function () { if (lire()) ouvrir(lire()); };
   document.getElementById('ok').onclick = function () {
