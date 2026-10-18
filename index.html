@@ -135,6 +135,7 @@
   }
   function dire(txt) {
     var m = document.getElementById('attenteTxt');
+    if (!m) return;   // Studio Devis déjà affiché : l'écran d'ouverture n'existe plus
     m.style.opacity = 0;
     setTimeout(function () { m.textContent = txt; m.style.opacity = 1; }, 400);
   }
@@ -160,6 +161,7 @@
     document.getElementById('chg').classList.remove('cache');
   }
   function afficher(html, url, key) {
+    etapes.forEach(clearTimeout); etapes = [];
     var tete = '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
       + '<title>Studio Devis</title><link rel="manifest" href="manifest.webmanifest">'
       + '<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">'
