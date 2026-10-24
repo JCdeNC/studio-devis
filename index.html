@@ -160,7 +160,7 @@
     f.src = adr; f.classList.remove('cache');
     document.getElementById('chg').classList.remove('cache');
   }
-  function afficher(html, url, key) {
+  function afficher(html, url, key, ancienne) {
     etapes.forEach(clearTimeout); etapes = [];
     var tete = '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
       + '<title>Studio Devis</title><link rel="manifest" href="manifest.webmanifest">'
@@ -169,7 +169,15 @@
       + '<meta name="apple-mobile-web-app-title" content="Studio Devis"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">'
       + '<meta name="theme-color" content="#181C2A">'
       + '<script>window.__STUDIO_HL=' + JSON.stringify({ url: url, key: key }) + ';<\/script>'
-      + '<script src="hors-ligne.js"><\/script>';
+      + '<script src="hors-ligne.js"><\/script>'
+      // la nouvelle version n'a pas pu se charger : bandeau orange bien visible sur la copie gardée, avec « Réessayer »
+      + (ancienne ? '<script>window.__STUDIO_ANCIENNE=' + JSON.stringify(ancienne) + ';document.addEventListener("DOMContentLoaded",function(){'
+        + 'var a=window.__STUDIO_ANCIENNE,b=document.createElement("div");'
+        + 'b.setAttribute("role","alert");b.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;display:flex;align-items:center;gap:12px;flex-wrap:wrap;'
+        + 'padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px));background:#E8772E;color:#fff;font:600 14px system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25)";'
+        + 'b.innerHTML="<span style=\\"flex:1;min-width:200px\\">⚠️ Ancienne copie"+(a.version?" ("+a.version.split(" ")[0]+")":"")+" : la nouvelle version de Studio Devis n’a pas pu se charger.</span>"'
+        + '+"<button type=button style=\\"border:0;border-radius:10px;padding:8px 14px;background:#fff;color:#B4571A;font:700 13px system-ui,sans-serif;cursor:pointer\\">Réessayer</button>";'
+        + 'b.querySelector("button").onclick=function(){location.reload();};document.body.appendChild(b);});<\/script>' : '');
     var avant = html;
     html = html.replace(/<head([^>]*)>/i, function (m) { return m + tete; });
     if (html === avant) html = tete + html;
@@ -177,7 +185,7 @@
   }
   function demanderPage(url, key) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var t = ctl ? setTimeout(function () { ctl.abort(); }, 25000) : null;
+    var t = ctl ? setTimeout(function () { ctl.abort(); }, 60000) : null;   // l'app pèse plus de 500 Ko : on lui laisse 60 s
     return fetch(url, { method: 'POST', redirect: 'follow', signal: ctl ? ctl.signal : undefined,
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ key: key, studio: 'page' }) })
       .then(function (r) { return r.json(); })
@@ -189,9 +197,9 @@
     if (!m) return reglage('Adresse incomplète : elle doit contenir /exec?key=…');
     var url = m[1], key = decodeURIComponent(m[2]);
     attente(navigator.onLine ? 'Ouverture de Studio Devis…' : 'Hors connexion : ouverture de la copie gardée sur l’appareil…', navigator.onLine);
-    var copie = function () {
+    var copie = function (signaler) {
       return kv('get', 'page').then(function (p) {
-        if (p && p.html && p.key === key) { afficher(p.html, url, key); return true; }
+        if (p && p.html && p.key === key) { afficher(p.html, url, key, signaler ? { version: p.version || '', t: p.t || 0 } : null); return true; }
         return false;
       });
     };
@@ -206,7 +214,7 @@
       throw new Error('réponse inattendue');
     }).catch(function () {
       // pas de réseau en réalité : la copie gardée ; sinon l'ancien affichage dans un cadre
-      copie().then(function (ok) { if (!ok) cadre(adr); });
+      copie(true).then(function (ok) { if (!ok) cadre(adr); });
     });
   }
   function reglage(msg) {
