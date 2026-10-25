@@ -17,6 +17,9 @@
   var ECRITURES_HL = ['apiPaiement', 'apiFrais', 'apiFraisLot', 'apiAgendaSauver', 'apiAgendaSupprimer',
     'apiTodoSauver', 'apiTodoSupprimer', 'apiTodoPayer'];
   var PAR_DEFAUT = { apiVignette: '', apiNbWix: 0, apiNbTodo: { n: 0, urgentes: 0 }, apiLienDevis: '' };
+  // Ouverture rapide : pendant les 20 premières secondes, ces écrans s'affichent d'abord avec la copie gardée,
+  // puis se mettent à jour quand le serveur répond (une seule fois par écran, jamais après une modification)
+  var DEBUT = Date.now(), RAPIDE = ['apiAgenda', 'apiNbWix', 'apiNbTodo'], dejaRapide = {};
   var MSG_INTERNET = 'Hors connexion : cette action a besoin d’internet. Elle sera possible au retour du réseau.';
 
   // ---------- mémoire de l'appareil (IndexedDB) ----------
@@ -93,8 +96,22 @@
 
   function passerHorsLigne() { if (!etat.horsLigne) { etat.horsLigne = true; majBandeau(); } }
 
+  // Photos (vignettes Drive que Safari bloque) : gardées sur l'appareil pour toujours, 3 demandes au serveur à la fois au plus
+  var vignEnCours = 0, vignFile = [];
+  function vignette(args, k) {
+    return lire(k).then(function (memo) {
+      if (memo) return memo;
+      if (!navigator.onLine || etat.horsLigne) return '';
+      return new Promise(function (res) { vignFile.push(res); suivanteVignette(); }).then(function () {
+        return serveur('apiVignette', args, 30000).then(function (u) { if (u) ecrire(k, u); return u || ''; }, function () { return ''; });
+      }).then(function (u) { vignEnCours--; suivanteVignette(); return u; });
+    });
+  }
+  function suivanteVignette() { while (vignEnCours < 3 && vignFile.length) { vignEnCours++; vignFile.shift()(); } }
+
   function appeler(fn, args) {
     var lecture = LECTURES.indexOf(fn) >= 0, k = cleCache(fn, args);
+    if (fn === 'apiVignette') return vignette(args, k);
     var horsLigne = function () {
       if (fn === 'apiDerniereAction') return null;   // jamais l'action d'avant (elle annulerait une modification du serveur)
       if (lecture) return lire(k).then(function (r) {
@@ -369,6 +386,11 @@
         if (typeof k !== 'string' || k === 'then' || k === 'toJSON') return undefined;
         return function () {
           var args = Array.prototype.slice.call(arguments);
+          var kc = cleCache(k, args);
+          if (ok && RAPIDE.indexOf(k) >= 0 && Date.now() - DEBUT < 20000 && !dejaRapide[kc] && navigator.onLine && !etat.horsLigne) {
+            dejaRapide[kc] = 1;
+            lire(kc).then(function (r) { if (r !== undefined) try { ok(r, u); } catch (e) {} });
+          }
           Promise.resolve().then(function () { return appeler(k, args); }).then(function (r) {
             if (ok) ok(r, u);
           }, function (e) {
@@ -433,6 +455,41 @@
     });
   }
   document.addEventListener('DOMContentLoaded', function () { majBandeau(); essayerRetour(); });
+
+  // ---------- ouverture instantanée : la nouvelle version de la page arrive en arrière-plan ----------
+  // La copie gardée est affichée ; on demande la page à jour, on la garde pour la prochaine ouverture,
+  // et si la version a changé, un bouton « Nouvelle version prête » permet de l'ouvrir tout de suite.
+  function nouvellePage() {
+    if (!CFG.rafraichir || !navigator.onLine) return;
+    fetch(CFG.url, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ key: CFG.key, studio: 'page' }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok || !j.html) return;
+        return ecrire('page', { html: j.html, key: CFG.key, t: Date.now(), version: j.version || '' }).then(function () {
+          if ((j.version || '') !== (CFG.version || '')) proposerVersion(j.version || '');
+        });
+      }).catch(function () {});
+  }
+  function proposerVersion(v) {
+    if (!document.body || document.getElementById('hlVersion')) return;
+    var s = document.createElement('style');
+    s.textContent = '#hlVersion{position:fixed;z-index:550;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:10px;'
+      + 'padding:8px 8px 8px 16px;border-radius:999px;background:#1F2330;color:#fff;font:600 13px Poppins,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:calc(100vw - 32px)}'
+      + '#hlVersion button{border:0;border-radius:999px;padding:8px 14px;background:#E8772E;color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer}'
+      + '#hlVersion i{font-style:normal;opacity:.7;cursor:pointer;padding:0 6px}'
+      + '@media(max-width:700px){#hlVersion{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}';
+    document.head.appendChild(s);
+    var b = document.createElement('div'); b.id = 'hlVersion'; b.setAttribute('role', 'status');
+    b.innerHTML = '<span>Nouvelle version' + (v ? ' ' + v.split(' ')[0] : '') + ' prête</span><button type="button">Ouvrir</button><i title="Plus tard">✕</i>';
+    b.querySelector('button').onclick = function () { location.reload(); };
+    b.querySelector('i').onclick = function () { b.remove(); };
+    document.body.appendChild(b);
+  }
+  var pageDemandee = false;
+  function plusTard() { if (pageDemandee) return; pageDemandee = true; setTimeout(nouvellePage, 2500); }
+  document.addEventListener('DOMContentLoaded', plusTard);
+  window.addEventListener('load', plusTard);
 
   window.StudioHorsLigne = { etat: etat, synchroniser: synchroniser, lire: lire };
 })();
