@@ -160,15 +160,18 @@
     f.src = adr; f.classList.remove('cache');
     document.getElementById('chg').classList.remove('cache');
   }
-  function afficher(html, url, key, ancienne) {
+  // instantanee : copie gardée affichée tout de suite ; hors-ligne.js charge la nouvelle version en arrière-plan (version = celle affichée)
+  function afficher(html, url, key, ancienne, instantanee) {
     etapes.forEach(clearTimeout); etapes = [];
+    var hl = { url: url, key: key };
+    if (instantanee) { hl.rafraichir = true; hl.version = instantanee.version || ''; }
     var tete = '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
       + '<title>Studio Devis</title><link rel="manifest" href="manifest.webmanifest">'
       + '<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">'
       + '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">'
       + '<meta name="apple-mobile-web-app-title" content="Studio Devis"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">'
       + '<meta name="theme-color" content="#181C2A">'
-      + '<script>window.__STUDIO_HL=' + JSON.stringify({ url: url, key: key }) + ';<\/script>'
+      + '<script>window.__STUDIO_HL=' + JSON.stringify(hl) + ';<\/script>'
       + '<script src="hors-ligne.js"><\/script>'
       // la nouvelle version n'a pas pu se charger : bandeau orange bien visible sur la copie gardée, avec « Réessayer »
       + (ancienne ? '<script>window.__STUDIO_ANCIENNE=' + JSON.stringify(ancienne) + ';document.addEventListener("DOMContentLoaded",function(){'
@@ -206,7 +209,14 @@
     if (!navigator.onLine) {
       return copie().then(function (ok) { if (!ok) attente('Hors connexion. Ouvrez Studio Devis une première fois avec internet sur cet appareil : il pourra ensuite s’ouvrir sans réseau.'); });
     }
-    demanderPage(url, key).then(function (j) {
+    // Ouverture instantanée : la copie gardée s'affiche tout de suite, la nouvelle version arrive en arrière-plan
+    // (hors-ligne.js la garde pour la prochaine ouverture et propose « Nouvelle version prête »).
+    // Première ouverture sur cet appareil (aucune copie) : on attend la page comme avant.
+    kv('get', 'page').then(function (p) {
+      if (p && p.html && p.key === key) return afficher(p.html, url, key, null, { version: p.version || '' });
+      telecharger();
+    });
+    function telecharger() { demanderPage(url, key).then(function (j) {
       if (j && j.ok && j.html) {
         return kv('put', 'page', { html: j.html, key: key, t: Date.now(), version: j.version || '' }).then(function () { afficher(j.html, url, key); });
       }
@@ -215,7 +225,7 @@
     }).catch(function () {
       // pas de réseau en réalité : la copie gardée ; sinon l'ancien affichage dans un cadre
       copie(true).then(function (ok) { if (!ok) cadre(adr); });
-    });
+    }); }
   }
   function reglage(msg) {
     document.getElementById('attente').classList.add('cache');
