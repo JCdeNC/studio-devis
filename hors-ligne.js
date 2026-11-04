@@ -20,6 +20,9 @@
   // Ouverture rapide : pendant les 20 premières secondes, ces écrans s'affichent d'abord avec la copie gardée,
   // puis se mettent à jour quand le serveur répond (une seule fois par écran, jamais après une modification)
   var DEBUT = Date.now(), RAPIDE = ['apiAgenda', 'apiNbWix', 'apiNbTodo'], dejaRapide = {};
+  // Affichage instantané (Index v191) : un écran qui le demande (withUserObject({ instant: 1 })) s'affiche tout de suite avec la copie gardée,
+  // puis se redessine quand le serveur répond (rien si c'est identique). Jamais une copie plus ancienne que la dernière modification faite ici.
+  var ecritA = 0, fraisA = {}, majEnCours = 0;
   var MSG_INTERNET = 'Hors connexion : cette action a besoin d’internet. Elle sera possible au retour du réseau.';
 
   // ---------- mémoire de l'appareil (IndexedDB) ----------
@@ -110,8 +113,10 @@
   function suivanteVignette() { while (vignEnCours < 3 && vignFile.length) { vignEnCours++; vignFile.shift()(); } }
 
   function appeler(fn, args) {
-    var lecture = LECTURES.indexOf(fn) >= 0, k = cleCache(fn, args);
+    var lecture = LECTURES.indexOf(fn) >= 0, k = cleCache(fn, args), t0 = Date.now();
     if (fn === 'apiVignette') return vignette(args, k);
+    var ecrit = !lecture && fn !== 'apiDerniereAction';
+    if (ecrit) ecritA = Date.now();
     var horsLigne = function () {
       if (fn === 'apiDerniereAction') return null;   // jamais l'action d'avant (elle annulerait une modification du serveur)
       if (lecture) return lire(k).then(function (r) {
@@ -126,9 +131,11 @@
     return lire('file', []).then(function (q) { return q.length ? synchroniser() : null; }).then(function () {
       if (etat.horsLigne) return horsLigne();
       return serveur(fn, args, lecture ? 25000 : 0).then(function (r) {
-        if (lecture) { ecrire(k, r); ecrire('derniereSynchro', Date.now()); apresLecture(fn, args, r); }
+        if (lecture) { fraisA[k] = t0; ecrire(k, r); ecrire('derniereSynchro', Date.now()); apresLecture(fn, args, r); }
+        if (ecrit) ecritA = Date.now();
         return r;
       }, function (e) {
+        if (ecrit) ecritA = Date.now();
         if (!e.reseau) throw e;
         passerHorsLigne();
         if (lecture || fn === 'apiDerniereAction') return horsLigne();
@@ -348,7 +355,8 @@
     return [isoL(d0), isoL(d1)];
   }
   function copier(fn, args) {
-    return serveur(fn, [CFG.key].concat(args), 30000).then(function (r) { return ecrire(cleCache(fn, [CFG.key].concat(args)), r); }, function () {});
+    var t0 = Date.now(), kc = cleCache(fn, [CFG.key].concat(args));
+    return serveur(fn, [CFG.key].concat(args), 30000).then(function (r) { if (t0 > ecritA) fraisA[kc] = t0; return ecrire(kc, r); }, function () {});
   }
   function apresLecture(fn, args) {
     if (fn === 'apiDossiers' && uneFois('details', 10 * 60000)) {
@@ -386,14 +394,27 @@
         if (typeof k !== 'string' || k === 'then' || k === 'toJSON') return undefined;
         return function () {
           var args = Array.prototype.slice.call(arguments);
-          var kc = cleCache(k, args);
-          if (ok && RAPIDE.indexOf(k) >= 0 && Date.now() - DEBUT < 20000 && !dejaRapide[kc] && navigator.onLine && !etat.horsLigne) {
+          var kc = cleCache(k, args), servi = false, montre = null;
+          var instant = ok && u && u.instant === 1 && LECTURES.indexOf(k) >= 0 && navigator.onLine && !etat.horsLigne
+            && (fraisA[kc] ? fraisA[kc] > ecritA : ecritA === 0);
+          if (instant) {
+            dejaRapide[kc] = 1;
+            lire(kc).then(function (r) {
+              if (r === undefined || servi) return;
+              montre = JSON.stringify(r); majEnCours++; majBandeau();
+              try { ok(r, u); } catch (e) {}
+            });
+          } else if (ok && RAPIDE.indexOf(k) >= 0 && Date.now() - DEBUT < 20000 && !dejaRapide[kc] && navigator.onLine && !etat.horsLigne) {
             dejaRapide[kc] = 1;
             lire(kc).then(function (r) { if (r !== undefined) try { ok(r, u); } catch (e) {} });
           }
+          var fini = function () { servi = true; if (montre !== null) { majEnCours = Math.max(0, majEnCours - 1); majBandeau(); } };
           Promise.resolve().then(function () { return appeler(k, args); }).then(function (r) {
-            if (ok) ok(r, u);
+            var deja = montre !== null && JSON.stringify(r) === montre;
+            fini();
+            if (ok && !deja) ok(r, u);
           }, function (e) {
+            fini();
             if (ko) ko(e instanceof Error ? e : new Error(String(e)), u);
             else if (window.console) console.warn('Studio Devis ·', k, e);
           });
@@ -407,7 +428,7 @@
   // ---------- bandeau d'état (en haut à droite ; sous la barre du haut sur iPhone) ----------
   var CSS = '#hlBandeau{position:fixed;z-index:500;top:12px;right:16px;max-width:calc(100vw - 32px);box-sizing:border-box;display:none;align-items:center;gap:8px;'
     + 'padding:8px 14px;border-radius:999px;font:600 12.5px Poppins,system-ui,sans-serif;background:#1F2330;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.3);cursor:default}'
-    + '#hlBandeau.vu{display:flex}#hlBandeau.att{background:#B45611}#hlBandeau.err{background:#B4281A;cursor:pointer}#hlBandeau small{font-weight:400;opacity:.8}'
+    + '#hlBandeau.vu{display:flex}#hlBandeau.maj{background:#EEF1F6;color:#3A4152;box-shadow:0 2px 10px rgba(0,0,0,.14)}#hlBandeau.att{background:#B45611}#hlBandeau.err{background:#B4281A;cursor:pointer}#hlBandeau small{font-weight:400;opacity:.8}'
     + '@media(max-width:700px){#hlBandeau{top:calc(66px + env(safe-area-inset-top,0px));right:50%;transform:translateX(50%)}}'
     + '#hlEchecs{position:fixed;inset:0;z-index:600;background:rgba(10,13,22,.6);display:flex;align-items:center;justify-content:center;padding:16px}'
     + '#hlEchecs .b{background:#fff;color:#1F2330;border-radius:20px;max-width:520px;width:100%;max-height:80vh;overflow:auto;padding:20px;font:14px/1.5 Poppins,system-ui,sans-serif}'
@@ -437,6 +458,7 @@
         return;
       }
       if (etat.envoi) { b.className = 'vu att'; b.textContent = '↻ Envoi de ' + pl(etat.envoi, 'modification') + '…'; return; }
+      if (majEnCours) { b.className = 'vu maj'; b.textContent = '↻ Mise à jour…'; return; }
       if (n) { b.className = 'vu att'; b.textContent = '⏳ ' + pl(n, 'modification') + ' en attente d’envoi'; }
     });
   }
